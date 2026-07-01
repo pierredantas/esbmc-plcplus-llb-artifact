@@ -1,0 +1,21 @@
+{
+  "title": "Detecting Ladder Logic Bombs in IEC 61131-3 PLC Programs using ESBMC-PLC+ — Artifact",
+  "upload_type": "software",
+  "description": "<p>Reproduction artifact for the paper <em>Detecting Ladder Logic Bombs in IEC 61131-3 PLC Programs using ESBMC-PLC+: A Formal Verification Approach with Trigger Synthesis</em>. The method <strong>uses ESBMC-PLC+</strong> as its verification engine (unchanged) and adds a modeling layer (<code>src/modeling_layer.patch</code>) that exposes function-block-resident Ladder Logic Bomb (LLB) logic to the prover.</p><p>Includes: the modeling-layer patch, corpus generators (adaptive-adversary variants, a 310-program Boolean/integer corpus, a value-forgery example), a proof-of-concept, run harnesses, and an EXPECTED.md mapping each claim to a script. Third-party datasets are pinned at fixed versions for reproducibility: the Iacobelli PLC-LD-dataset (commit c2ee2324) and the PLC-Defuser SWaT development snapshot (commit 0361129) are bundled frozen, each with its upstream GPL-3 LICENSE and a SHA256 integrity manifest, while the archived PLC-Defuser SWaT v1.0.0 release (DOI 10.5281/zenodo.14014820) is fetched at run time. A single binary reproduces both the sound Boolean/integer configuration (zero false positives) and the analog-extended configuration via the <code>--ld-sound-mode</code> flag, with the scan-watchdog controlled by <code>--ld-scan-watchdog</code>/<code>--ld-scan-budget</code>.</p><p>Honest scope: strong on Boolean/integer ladder logic (30/30 third-party detection, 100% on the 310-program corpus, adaptive 5/5), with unbounded bomb-absence proofs and trigger synthesis. On PLC-Defuser's real analog SWaT benchmark the analog modeling extension parses the full corpus for the first time and detects 149/150 (99%) with zero false positives on the archived v1.0.0 release; on a later development version that adds nonlinear-arithmetic (i*i) non-termination bombs, detection drops to 49% as the SMT backend times out. Semantic model checking and CFG-triage are complementary.</p>",
+  "creators": [
+    {"name": "Dantas, Pierre", "affiliation": "University of Manchester"},
+    {"name": "Cordeiro, Lucas", "affiliation": "University of Manchester"},
+    {"name": "Junior, Waldir", "affiliation": "Federal University of Amazonas (UFAM)"}
+  ],
+  "license": "MIT",
+  "keywords": [
+    "PLC", "IEC 61131-3", "Ladder Logic Bomb", "Industrial Control Systems security",
+    "ESBMC", "ESBMC-PLC+", "bounded model checking", "k-induction", "formal verification",
+    "trigger synthesis", "SWaT"
+  ],
+  "related_identifiers": [
+    {"relation": "isDerivedFrom", "identifier": "10.5281/zenodo.20786920", "scheme": "doi"},
+    {"relation": "references", "identifier": "10.5281/zenodo.14014820", "scheme": "doi"},
+    {"relation": "isSupplementTo", "identifier": "https://github.com/UniboSecurityResearch/PLC-LD-dataset", "scheme": "url"}
+  ]
+}

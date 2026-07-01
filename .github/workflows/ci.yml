@@ -1,0 +1,128 @@
+name: CI
+
+# Reproduction-artifact smoke tests for
+# "Detecting Ladder Logic Bombs in IEC 61131-3 PLC Programs using ESBMC-PLC+".
+#
+# Two jobs:
+#   validate — no verification engine needed: lints the scripts, compiles and runs
+#              the corpus generators (asserting the expected program counts), and
+#              verifies the integrity of the vendored frozen datasets.
+#   poc      — downloads a pinned, prebuilt stock ESBMC binary and runs the
+#              standalone proof-of-concept. The PoC is a plain-C transcription of
+#              the six function-block bombs, so it needs neither the modeling-layer
+#              patch nor the ESBMC-PLC+ LD frontend: stock ESBMC detects each bomb
+#              (VIOLATION) and proves each benign variant SAFE.
+#
+# The full patched ESBMC-PLC+ pipeline (Dockerfile + modeling_layer.patch) is heavy
+# and version-sensitive; it is intentionally NOT built here. See README.md.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Pinned stock ESBMC release used by the PoC job (reproducible; the PoC only needs
+# a modern C model checker, not the ESBMC-PLC+ build).
+env:
+  ESBMC_RELEASE: v8.3
+
+jobs:
+  validate:
+    name: Validate scripts, generators & datasets
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax-check all shell scripts
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            echo "bash -n $f"
+            bash -n "$f" || fail=1
+          done < <(find . -name '*.sh' -type f)
+          exit $fail
+
+      - name: Byte-compile all Python
+        run: python3 -m py_compile $(find corpora scripts -name '*.py')
+
+      - name: Generate scale corpus and assert counts (RQ5)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cp corpora/gen_corpus.py "$work"/
+          ( cd "$work" && python3 gen_corpus.py )
+          m=$(find "$work/corpus" -name 'M_*.ld' | wc -l | tr -d ' ')
+          l=$(find "$work/corpus" -name 'L_*.ld' | wc -l | tr -d ' ')
+          echo "malicious=$m benign=$l"
+          test "$m" = 156 && test "$l" = 156
+
+      - name: Generate adaptive variants and assert counts (RQ4)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cp corpora/gen_adaptive.py "$work"/
+          mkdir -p "$work/ds"
+          ln -sfn "$PWD/corpora/datasets/PLC-LD-dataset/malicious" "$work/ds/malicious"
+          ( cd "$work" && python3 gen_adaptive.py )
+          n=$(find "$work" -maxdepth 1 -name 'ADV_*.ld' | wc -l | tr -d ' ')
+          echo "adaptive variants=$n"
+          test "$n" = 5
+
+      - name: Verify vendored dataset integrity (SHA256SUMS)
+        run: |
+          set -euo pipefail
+          while IFS= read -r sums; do
+            dir="$(dirname "$sums")"
+            echo "Verifying $dir"
+            ( cd "$dir" && sha256sum -c SHA256SUMS >/dev/null )
+          done < <(find corpora/datasets -name SHA256SUMS)
+          echo "All vendored datasets verified."
+
+  poc:
+    name: Proof-of-concept detection (stock ESBMC)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download pinned prebuilt ESBMC
+        run: |
+          set -euo pipefail
+          gh release download "$ESBMC_RELEASE" --repo esbmc/esbmc \
+            --pattern 'esbmc-linux.zip' --dir "$RUNNER_TEMP"
+          unzip -q "$RUNNER_TEMP/esbmc-linux.zip" -d "$RUNNER_TEMP/esbmc"
+          bin="$(find "$RUNNER_TEMP/esbmc" -type f -name esbmc | head -1)"
+          test -n "$bin"
+          chmod +x "$bin"
+          echo "ESBMC_BIN=$bin" >> "$GITHUB_ENV"
+          "$bin" --version | head -1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run the 6-family proof-of-concept
+        run: |
+          set -uo pipefail
+          cd corpora/poc/families
+          ESBMC="$ESBMC_BIN" bash gen_run_families.sh | tee poc.out
+
+      - name: Assert every benign is SAFE and every bomb is a VIOLATION
+        run: |
+          set -euo pipefail
+          out="corpora/poc/families/poc.out"
+          fail=0
+          for fam in EQ_0 LE_0 LT_0 GE_0 GT_0 SUB_0; do
+            line="$(grep -E "^${fam}[[:space:]]*\|" "$out" || true)"
+            if [ -z "$line" ]; then
+              echo "MISSING result row for family $fam"; fail=1; continue
+            fi
+            legit="$(echo "$line" | awk -F'|' '{gsub(/ /,"",$2); print $2}')"
+            mal="$(echo "$line"   | awk -F'|' '{gsub(/ /,"",$3); print $3}')"
+            echo "$fam: legit=$legit malicious=$mal"
+            [ "$legit" = "SAFE" ]      || { echo "  ! expected legit SAFE";        fail=1; }
+            [ "$mal" = "VIOLATION" ]   || { echo "  ! expected malicious VIOLATION"; fail=1; }
+          done
+          exit $fail

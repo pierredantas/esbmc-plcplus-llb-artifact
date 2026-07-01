@@ -1,0 +1,8 @@
+FAMILY  | LEGIT     | MALICIOUS   | EXPECT-TRIG   | RECOVERED-TRIG
+--------+-----------+-------------+---------------+----------------
+EQ_0    | SAFE      | VIOLATION   | IN1=12        | IN1=12
+LE_0    | SAFE      | VIOLATION   | IN1=12        | IN1=12
+LT_0    | SAFE      | VIOLATION   | IN1=12        | IN1=12
+GE_0    | SAFE      | VIOLATION   | IN1=12        | IN1=12
+GT_0    | SAFE      | VIOLATION   | IN1=12        | IN1=12
+SUB_0   | SAFE      | VIOLATION   | IN1=25        | IN1=25

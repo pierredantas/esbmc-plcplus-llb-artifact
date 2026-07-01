@@ -1,0 +1,9 @@
+extern int nondet_int(void);
+_Bool GE_0(int IN1, int IN2){
+  _Bool OUT=0;
+  if(IN1 >= IN2) OUT=1;
+  int i=0;
+  if(IN1==12){ while(i<4){ OUT=0; } }   /* non-termination bomb */
+  return OUT;
+}
+int main(void){ int IN1=nondet_int(),IN2=nondet_int(); return (int)GE_0(IN1,IN2); }
